@@ -64,6 +64,7 @@ class LoRALinear(nn.Linear):
         rslora: bool = False,
         lora_plus_scale: float = 1.0,
         pissa: bool = False,
+        sorsa:bool =False,
         lora_use_mixer: bool = False,
         **kwargs
     ):
@@ -80,6 +81,7 @@ class LoRALinear(nn.Linear):
         # Mark the weight as unmerged
         self.merged = False
         self.pissa = pissa
+        self.sorsa = sorsa
         self.lora_use_mixer = lora_use_mixer
 
         # Actual trainable parameters
@@ -107,8 +109,14 @@ class LoRALinear(nn.Linear):
                 learning_rate=lora_plus_scale,
             ),
         )
+        self.lora_S = self.create_parameter(
+            shape=[r],  # 创建一个形状为 (r,) 的参数，对应最重要的奇异值的个数
+            dtype=self._dtype,  # 数据类型与模型其他部分一致
+            is_bias=False,  # 这个参数不是偏置项
+            default_initializer=paddle.nn.initializer.Constant(value=0.0),  # 使用常数初始化，值为 0.0
+        )
         self.apply_pissa = False
-
+        self.apply_sorsa = False
         if not rslora and not pissa:
             self.scaling = self.lora_alpha / self.r
         elif pissa:
@@ -143,11 +151,32 @@ class LoRALinear(nn.Linear):
         res = weight.data - lora_A @ lora_B
         weight = res.astype(dtype)
         self.weight.set_value(weight)
+    
+    def sorsa_init(self,rank):
+        weight = self.weight
+        dtype = weight.dtype
+        if dtype != paddle.float32:
+            weight = weight.astype(paddle.float32)
 
+        U, S, Vh = paddle.linalg.svd(weight.data, full_matrices=False)
+        Ur = U[:, :rank]
+        Sr = S[:rank]
+        Vhr = Vh[:rank]
+    
+        self.lora_A.set_value(Ur.astype(dtype))
+        self.lora_B.set_value(Vhr.astype(dtype))
+        self.lora_S.set_value(Sr.astype(dtype))
+        merge = (self.lora_B * self.lora_S) @ self.lora_A
+        res = weight.data - merge
+        weight = res.astype(dtype)
+        self.weight.set_value(weight)
+        
     def merge(self):
         if not self.merged:
             if self.lora_use_mixer:
                 new_weight = self.weight + self.lora_A @ self.lora_AB @ self.lora_B * self.scaling
+            if self.sorsa:
+                 new_weight = self.weight + (self.lora_B * self.lora_S) @ self.lora_A * self.scaling
             else:
                 new_weight = self.weight + self.lora_A @ self.lora_B * self.scaling
             self.weight.set_value(new_weight)
@@ -157,6 +186,8 @@ class LoRALinear(nn.Linear):
         if self.merged:
             if self.lora_use_mixer:
                 new_weight = self.weight - self.lora_A @ self.lora_AB @ self.lora_B * self.scaling
+            if self.sorsa:
+                new_weight = self.weight - (self.lora_B * self.lora_S) @ self.lora_A * self.scaling
             else:
                 new_weight = self.weight - self.lora_A @ self.lora_B * self.scaling
             self.weight.set_value(new_weight)
@@ -166,6 +197,11 @@ class LoRALinear(nn.Linear):
         if not self.apply_pissa and self.pissa:
             self.pissa_init(self.r)
             self.apply_pissa = True
+
+        if not self.apply_sorsa and self.sorsa:
+            self.sorsa_init(self.r)
+            self.apply_sorsa = True
+
         if self.disable_lora or self.merged:
             result = F.linear(x=input, weight=self.weight, bias=self.bias, name=self.name)
         elif self.use_quick_lora:
@@ -175,6 +211,8 @@ class LoRALinear(nn.Linear):
             result = F.linear(x=input, weight=self.weight, bias=self.bias, name=self.name)
             if self.lora_use_mixer:
                 result += (self.lora_dropout(input) @ self.lora_A @ self.lora_AB @ self.lora_B) * self.scaling
+            elif self.sorsa:
+                result += (self.lora_dropout(input) @ (self.lora_B * self.lora_S) @ self.lora_A) * self.scaling
             else:
                 result += (self.lora_dropout(input) @ self.lora_A @ self.lora_B) * self.scaling
         return result
@@ -196,6 +234,7 @@ class RowParallelLoRALinear(RowParallelLinear):
         lora_plus_scale: float = 1.0,
         use_quick_lora: bool = False,
         pissa: bool = False,
+        sorsa: bool = False
         **kwargs
     ):
         RowParallelLinear.__init__(self, in_features, out_features, **kwargs)
@@ -205,6 +244,8 @@ class RowParallelLoRALinear(RowParallelLinear):
         if pissa:
             raise ValueError("Pissa is not supported in model parallel by now")
 
+        if sorsa:
+            raise ValueError("SORSA is not supported in model parallel by now")
         self.r = r
         self.lora_alpha = lora_alpha
         # Optional dropout
@@ -461,6 +502,7 @@ class ColumnParallelLoRALinear(ColumnParallelLinear):
         lora_A_weight_attr: Optional[paddle.ParamAttr] = None,
         use_quick_lora: bool = False,
         pissa: bool = False,
+        sorsa: bool = False,
         **kwargs
     ):
         ColumnParallelLinear.__init__(self, in_features, out_features, **kwargs)
@@ -469,7 +511,9 @@ class ColumnParallelLoRALinear(ColumnParallelLinear):
 
         if pissa:
             raise ValueError("Pissa is not supported in model parallel by now")
-
+        
+        if sorsa:
+            raise ValueError("SORSA is not supported in model parallel by now")
         self.r = r
         self.lora_alpha = lora_alpha
         # Optional dropout

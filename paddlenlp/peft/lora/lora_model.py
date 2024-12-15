@@ -446,6 +446,7 @@ class LoRAModel(nn.Layer):
                 rslora=lora_config.rslora,
                 lora_plus_scale=lora_config.lora_plus_scale,
                 pissa=lora_config.pissa,
+                sorsa=lora_config.sorsa,
                 bias_attr=False if module.bias is None else None,
                 use_quick_lora=lora_config.use_quick_lora,
                 lora_use_mixer=lora_config.lora_use_mixer,
@@ -480,6 +481,7 @@ class LoRAModel(nn.Layer):
                 rslora=lora_config.rslora,
                 lora_plus_scale=lora_config.lora_plus_scale,
                 pissa=lora_config.pissa,
+                sorsa=lora_config.sorsa,
                 lora_A_weight_attr=paddle.ParamAttr(
                     initializer=nn.initializer.KaimingUniform(negative_slope=math.sqrt(5), nonlinearity="leaky_relu")
                 ),
@@ -506,6 +508,7 @@ class LoRAModel(nn.Layer):
                 rslora=lora_config.rslora,
                 lora_plus_scale=lora_config.lora_plus_scale,
                 pissa=lora_config.pissa,
+                sorsa=lora_config.sorsa,
                 use_quick_lora=lora_config.use_quick_lora,
             )
             # Lora column parallel will spilt lora A matrix
