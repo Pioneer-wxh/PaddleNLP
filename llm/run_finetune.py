@@ -505,6 +505,7 @@ def create_peft_model(model_args, reft_args, training_args, dtype, model_config,
                 rslora=model_args.rslora,
                 lora_plus_scale=model_args.lora_plus_scale,
                 pissa=model_args.pissa,
+                sorsa=model_args.sorsa,
                 merge_weights=False,
                 tensor_parallel_degree=training_args.tensor_parallel_degree,
                 dtype=dtype,
@@ -569,6 +570,7 @@ def create_peft_model(model_args, reft_args, training_args, dtype, model_config,
             dtype=dtype,
             base_model_name_or_path=model_args.model_name_or_path,
             pissa_init=True,
+            sorsa_init=True,
         )
         model = VeRAModel(model, vera_config)
         model.mark_only_vera_as_trainable(notfreezeB=True)

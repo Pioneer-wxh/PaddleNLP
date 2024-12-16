@@ -173,9 +173,9 @@ class LoRALinear(nn.Linear):
         
     def merge(self):
         if not self.merged:
-            if self.lora_use_mixer:
+            if self.lora_use_mixer and not self.sorsa:
                 new_weight = self.weight + self.lora_A @ self.lora_AB @ self.lora_B * self.scaling
-            if self.sorsa:
+            elif self.sorsa:
                  new_weight = self.weight + (self.lora_B * self.lora_S) @ self.lora_A * self.scaling
             else:
                 new_weight = self.weight + self.lora_A @ self.lora_B * self.scaling
@@ -184,9 +184,9 @@ class LoRALinear(nn.Linear):
 
     def unmerge(self):
         if self.merged:
-            if self.lora_use_mixer:
+            if self.lora_use_mixer and not self.sorsa:
                 new_weight = self.weight - self.lora_A @ self.lora_AB @ self.lora_B * self.scaling
-            if self.sorsa:
+            elif self.sorsa:
                 new_weight = self.weight - (self.lora_B * self.lora_S) @ self.lora_A * self.scaling
             else:
                 new_weight = self.weight - self.lora_A @ self.lora_B * self.scaling
@@ -209,7 +209,7 @@ class LoRALinear(nn.Linear):
             result = quick_lora(input, self.lora_A, self.lora_B, self.weight, self.bias, self.scaling)
         else:
             result = F.linear(x=input, weight=self.weight, bias=self.bias, name=self.name)
-            if self.lora_use_mixer:
+            if self.lora_use_mixer and not self.sorsa:
                 result += (self.lora_dropout(input) @ self.lora_A @ self.lora_AB @ self.lora_B) * self.scaling
             elif self.sorsa:
                 result += (self.lora_dropout(input) @ (self.lora_B * self.lora_S) @ self.lora_A) * self.scaling
