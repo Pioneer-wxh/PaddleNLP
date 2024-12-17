@@ -1,7 +1,7 @@
 {
-    "model_name_or_path": "meta-llama/Meta-Llama-3-8B",
-    "dataset_name_or_path": "./data",
-    "output_dir": "./checkpoints/lora_ckpts",
+    "model_name_or_path": "meta-llama/Meta-Llama-3-8B-Instruct",
+    "dataset_name_or_path": "/root/autodl-tmp/PaddleNLP/data",
+    "output_dir": "/root/autodl-tmp/PaddleNLP/output",
     "per_device_train_batch_size": 4,
     "gradient_accumulation_steps": 4,
     "per_device_eval_batch_size": 8,
@@ -22,7 +22,7 @@
     "load_best_model_at_end": true,
     "eval_with_do_generation": false,
     "metric_for_best_model": "accuracy",
-    "recompute": true,
+    "recompute": false,
     "save_total_limit": 1,
     "tensor_parallel_degree": 1,
     "pipeline_parallel_degree": 1,
@@ -32,5 +32,5 @@
     "use_flash_attention": true,
     "unified_checkpoint": true,
     "pissa": false,
-    "sorsa": false 
+    "sorsa": true 
   }

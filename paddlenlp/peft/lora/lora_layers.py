@@ -110,10 +110,10 @@ class LoRALinear(nn.Linear):
             ),
         )
         self.lora_S = self.create_parameter(
-            shape=[r],  # 创建一个形状为 (r,) 的参数，对应最重要的奇异值的个数
-            dtype=self._dtype,  # 数据类型与模型其他部分一致
-            is_bias=False,  # 这个参数不是偏置项
-            default_initializer=paddle.nn.initializer.Constant(value=0.0),  # 使用常数初始化，值为 0.0
+            shape=[r],  
+            dtype=self._dtype,  
+            is_bias=False,  
+            default_initializer=paddle.nn.initializer.Constant(value=0.0),  
         )
         self.apply_pissa = False
         self.apply_sorsa = False
@@ -159,24 +159,21 @@ class LoRALinear(nn.Linear):
             weight = weight.astype(paddle.float32)
 
         U, S, Vh = paddle.linalg.svd(weight.data, full_matrices=False)
-        Ur = U[:, :rank]
-        Sr = S[:rank]
-        Vhr = Vh[:rank]
-    
-        self.lora_A.set_value(Ur.astype(dtype))
-        self.lora_B.set_value(Vhr.astype(dtype))
-        self.lora_S.set_value(Sr.astype(dtype))
-        merge = (self.lora_B * self.lora_S) @ self.lora_A
-        res = weight.data - merge
-        weight = res.astype(dtype)
-        self.weight.set_value(weight)
+       
+       
+        self.lora_A.set_value(U[:, : rank].astype(dtype))  
+        self.lora_S.set_value(S[: rank].astype(dtype))  
+        self.lora_B.set_value(Vh[: rank, :].astype(dtype))  
+        merge = paddle.matmul(self.lora_A,self.lora_B * self.lora_S.unsqueeze(1) )
+        merge =merge.astype(dtype)
+        self.weight.set_value(self.weight - merge * self.scaling)
         
     def merge(self):
         if not self.merged:
             if self.lora_use_mixer and not self.sorsa:
                 new_weight = self.weight + self.lora_A @ self.lora_AB @ self.lora_B * self.scaling
             elif self.sorsa:
-                 new_weight = self.weight + (self.lora_B * self.lora_S) @ self.lora_A * self.scaling
+                 new_weight = self.weight + paddle.matmul(self.lora_A,self.lora_B * self.lora_S.unsqueeze(1) ) * self.scaling
             else:
                 new_weight = self.weight + self.lora_A @ self.lora_B * self.scaling
             self.weight.set_value(new_weight)
@@ -187,7 +184,7 @@ class LoRALinear(nn.Linear):
             if self.lora_use_mixer and not self.sorsa:
                 new_weight = self.weight - self.lora_A @ self.lora_AB @ self.lora_B * self.scaling
             elif self.sorsa:
-                new_weight = self.weight - (self.lora_B * self.lora_S) @ self.lora_A * self.scaling
+                new_weight = self.weight -paddle.matmul(self.lora_A,self.lora_B * self.lora_S.unsqueeze(1) ) * self.scaling
             else:
                 new_weight = self.weight - self.lora_A @ self.lora_B * self.scaling
             self.weight.set_value(new_weight)
@@ -212,7 +209,7 @@ class LoRALinear(nn.Linear):
             if self.lora_use_mixer and not self.sorsa:
                 result += (self.lora_dropout(input) @ self.lora_A @ self.lora_AB @ self.lora_B) * self.scaling
             elif self.sorsa:
-                result += (self.lora_dropout(input) @ (self.lora_B * self.lora_S) @ self.lora_A) * self.scaling
+                result += (self.lora_dropout(input) @ paddle.matmul(self.lora_A,self.lora_B * self.lora_S.unsqueeze(1) )) * self.scaling
             else:
                 result += (self.lora_dropout(input) @ self.lora_A @ self.lora_B) * self.scaling
         return result
@@ -234,7 +231,7 @@ class RowParallelLoRALinear(RowParallelLinear):
         lora_plus_scale: float = 1.0,
         use_quick_lora: bool = False,
         pissa: bool = False,
-        sorsa: bool = False
+        sorsa: bool = False,
         **kwargs
     ):
         RowParallelLinear.__init__(self, in_features, out_features, **kwargs)

@@ -1,0 +1,10 @@
+[
+    {
+        "src": "Please answer the following question with true or false, question: will there be a new season of cutthroat kitchen?\n\nAnswer format: true/false",
+        "tgt": "the correct answer is false"
+    },
+    {
+        "src": "Please answer the following question with true or false, question: is jack sikma in the hall of fame?\n\nAnswer format: true/false",
+        "tgt": "the correct answer is true"
+    }
+]
